@@ -57,6 +57,7 @@ function installIPC() {
   handle('read-all', name => store.readAll(name));
   handle('read-one', (name, id) => store.readOne(name, id));
   handle('write-one', (name, value) => store.writeOne(name, value));
+  handle('write-library', changes => store.writeLibrary(changes));
   handle('remove-one', (name, id) => store.removeOne(name, id));
   handle('read-pdf', id => store.readPDF(id));
   handle('pdf-digest', bytes => {

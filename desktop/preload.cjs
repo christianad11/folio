@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('folioDesktop', {
   readAll: store => ipcRenderer.invoke('folio:read-all', store),
   readOne: (store, id) => ipcRenderer.invoke('folio:read-one', store, id),
   writeOne: (store, value) => ipcRenderer.invoke('folio:write-one', store, value),
+  writeLibrary: changes => ipcRenderer.invoke('folio:write-library', changes),
   writeFile: value => ipcRenderer.invoke('folio:write-file', value),
   removeOne: (store, id) => ipcRenderer.invoke('folio:remove-one', store, id),
   pickPDFs: () => ipcRenderer.invoke('folio:pick-pdfs'),

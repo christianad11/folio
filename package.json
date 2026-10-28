@@ -1,7 +1,7 @@
 {
   "name": "folio-reader",
   "productName": "Folio",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A minimal, local PDF reader with shelves, highlights, and distraction-free reading.",
   "private": true,
   "main": "desktop/main.cjs",

@@ -39,6 +39,19 @@ class FolioStore {
     if (json.length > 16 * 1024 * 1024) throw new Error('This library record is too large.');
     this.db.prepare('INSERT INTO records (store,id,value) VALUES (?,?,?) ON CONFLICT(store,id) DO UPDATE SET value=excluded.value').run(store, value.id, json);
   }
+  writeLibrary(changes) {
+    if (!Array.isArray(changes) || changes.length > 12000) throw new Error('Invalid library changes.');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const change of changes) {
+        if (change?.remove) {
+          if (change.store !== 'shelves' || !validID(change.id)) throw new Error('Invalid shelf.');
+          this.db.prepare("DELETE FROM records WHERE store='shelves' AND id=?").run(change.id);
+        } else this.writeOne(change?.store, change?.value);
+      }
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
   managedPDF(bytes) {
     bytes = Buffer.from(bytes);
     if (bytes.length > 256 * 1024 * 1024 || !bytes.subarray(0, 1024).toString().includes('%PDF-')) throw new Error('Choose a valid PDF smaller than 256 MB.');

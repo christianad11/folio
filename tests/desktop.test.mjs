@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {encodeArchive, decodeArchive, toBase64, validateArchive} from '../dist/library-backup.mjs';
+import {reorderShelfBooks,detachShelf} from '../dist/library-shelves.mjs';
 
 const require = createRequire(import.meta.url);
 const {FolioStore} = require('../desktop/store.cjs');
@@ -84,6 +85,37 @@ test('desktop storage refuses unknown tables, invalid IDs, and non-PDF data', t 
   assert.throws(() => store.writeOne('books', book({id: '../../escape'})));
   assert.throws(() => store.writeFile('pdf-test', {bytes: new Uint8Array([1, 2, 3])}));
   store.close();
+});
+
+test('shelf names and book order persist through reopening and portable backup',async t=>{
+  const directory=fixture(t);let store=new FolioStore(directory);
+  const books=reorderShelfBooks([book({id:'first'}),book({id:'second'})],'shelf-one','second','first');
+  store.writeLibrary([{store:'shelves',value:{id:'shelf-one',name:'Renamed'}},...books.map(value=>({store:'books',value})),{store:'settings',value:{id:'library-sort',value:'manual'}}]);
+  for(const item of books)store.writeFile(item.id,{bytes:pdf});
+  store.close();store=new FolioStore(directory);
+  assert.equal(store.readOne('shelves','shelf-one').name,'Renamed');
+  assert.equal(store.readOne('books','second').shelfOrder['shelf-one'],0);
+  assert.equal(store.readOne('settings','library-sort').value,'manual');
+  const archive=await decodeArchive(await encodeArchive(store.snapshot()));
+  const restored=new FolioStore(path.join(directory,'restored'));restored.importArchive(archive);
+  assert.equal(restored.readOne('books','first').shelfOrder['shelf-one'],1);
+  const detached=detachShelf(store.readAll('books'),'shelf-one');
+  store.writeLibrary([...detached.map(value=>({store:'books',value})),{store:'shelves',id:'shelf-one',remove:true}]);
+  assert.equal(store.readOne('shelves','shelf-one'),undefined);
+  assert.equal(store.readOne('books','first').shelfId,null);
+  assert.equal(store.readOne('books','first').progress,50);
+  assert.deepEqual(store.readPDF('first'),pdf);
+  assert.deepEqual(store.readPDF('second'),pdf);
+  store.close();restored.close();
+});
+
+test('a failed shelf change rolls back all metadata and keeps its PDFs',t=>{
+  const store=new FolioStore(fixture(t));store.writeOne('books',book());store.writeFile('pdf-test',{bytes:pdf});
+  store.writeOne('shelves',{id:'shelf-one',name:'Keep this'});
+  assert.throws(()=>store.writeLibrary([{store:'shelves',id:'shelf-one',remove:true},{store:'books',value:book({id:'../invalid'})}]));
+  assert.equal(store.readOne('shelves','shelf-one').name,'Keep this');
+  assert.equal(store.readOne('books','pdf-test').shelfId,'shelf-one');
+  assert.deepEqual(store.readPDF('pdf-test'),pdf);store.close();
 });
 
 test('the asset protocol and IPC accept only the Folio app and its main frame', () => {

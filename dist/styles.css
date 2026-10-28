@@ -94,3 +94,18 @@
 /* Scrolling stays native; the track is kept out of the reading surface. */
 :root,.reader-main,.reader-panel,.saved-list,.library-sidebar,#custom-shelf-nav{scrollbar-width:none;scrollbar-gutter:auto}
 :root::-webkit-scrollbar,.reader-main::-webkit-scrollbar,.reader-panel::-webkit-scrollbar,.saved-list::-webkit-scrollbar,.library-sidebar::-webkit-scrollbar,#custom-shelf-nav::-webkit-scrollbar{display:none;width:0;height:0}
+
+/* Shelf controls appear when needed; books keep a small, clear insertion marker. */
+.custom-shelf-row{display:flex;align-items:center;gap:2px;margin-bottom:4px;border-radius:7px}
+.custom-shelf-row>.nav-item{flex:1;min-width:0;margin-bottom:0;padding-inline-end:8px}
+.shelf-menu-button{width:28px;height:36px;opacity:0;border-radius:6px}
+.shelf-menu-button svg{width:16px;height:16px}
+.custom-shelf-row:hover .shelf-menu-button,.custom-shelf-row:focus-within .shelf-menu-button,.shelf-menu-button[aria-expanded=true]{opacity:1}
+.shelf-context{position:fixed;width:180px;z-index:60}
+.floating-menu .danger{color:#a2533e}
+.book-context{position:fixed}
+.book-order-earlier svg{transform:rotate(180deg)}
+.book-card.drop-before::before,.book-card.drop-after::after{content:"";position:absolute;top:0;bottom:0;width:2px;border-radius:2px;background:var(--olive);pointer-events:none}
+.book-card.drop-before::before{left:-12px}.book-card.drop-after::after{right:-12px}
+.library-dragging{user-select:none}.library-dragging .book-cover-button{cursor:grabbing}.library-dragging .cover-read{opacity:0}
+@media(hover:none){.shelf-menu-button{opacity:1;width:40px;height:40px}}

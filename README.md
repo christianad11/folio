@@ -6,7 +6,7 @@ A minimal PDF reader for Mac, with a personal library, quiet colors, and room to
 
 ## Features
 
-- **Your library.** Import PDFs, link local files in supported browsers, and drag books between shelves. Keep track of what you’re reading and where you left off.
+- **Your library.** Import PDFs, rename or delete custom shelves, and drag books between shelves or into your own order. Each shelf remembers its arrangement. Keep track of what you’re reading and where you left off.
 - **Comfortable reading.** Continuous scrolling without visible scrollbars, trackpad pinch to zoom, fit controls, editable page numbers, and chapters when available.
 - **Find a passage.** Search the whole PDF and jump between highlighted results.
 - **Keep what matters.** Yellow, green, and pink highlights, page bookmarks, and notes. Export passages as Markdown, plain text, or JSON.
@@ -24,6 +24,8 @@ A minimal PDF reader for Mac, with a personal library, quiet colors, and room to
 Open **Folio.app** from Applications or your Dock. No Terminal, Python, or local server is needed. Open PDFs with `⌘O`, drag them into your library, or choose **Open With → Folio** in Finder.
 
 Select several PDFs with `⌘` or `Shift` in the file picker. They are added together, and the library stays visible so you can choose what to read. Skipping one file lets the remaining files continue.
+
+Use a custom shelf’s **⋯** menu to rename or delete it. Deleting a shelf keeps its books. Drag book covers to arrange a shelf, or use **Move earlier** / **Move later** in a book’s menu. Choose **Shelf order** in the sorting control to return to your saved arrangement.
 
 To build on macOS, install Node.js 22.13 or newer and Apple’s Command Line Tools, then run:
 
