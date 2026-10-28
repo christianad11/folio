@@ -90,3 +90,7 @@
 .startup-line>span{display:block;height:100%;width:22px;background:var(--olive);border-radius:2px}
 @media(prefers-reduced-motion:no-preference){.startup-mark{animation:startup-mark 240ms ease-out both}.startup-line>span{animation:startup-line 850ms ease-in-out infinite}@keyframes startup-mark{from{opacity:0;transform:translateY(4px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes startup-line{from{transform:translateX(-24px)}to{transform:translateX(56px)}}}
 @media(prefers-reduced-motion:reduce){.startup-line>span{width:100%}}
+
+/* Scrolling stays native; the track is kept out of the reading surface. */
+:root,.reader-main,.reader-panel,.saved-list,.library-sidebar,#custom-shelf-nav{scrollbar-width:none;scrollbar-gutter:auto}
+:root::-webkit-scrollbar,.reader-main::-webkit-scrollbar,.reader-panel::-webkit-scrollbar,.saved-list::-webkit-scrollbar,.library-sidebar::-webkit-scrollbar,#custom-shelf-nav::-webkit-scrollbar{display:none;width:0;height:0}

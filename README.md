@@ -7,7 +7,7 @@ A minimal PDF reader for Mac, with a personal library, quiet colors, and room to
 ## Features
 
 - **Your library.** Import PDFs, link local files in supported browsers, and drag books between shelves. Keep track of what you’re reading and where you left off.
-- **Comfortable reading.** Continuous scrolling, trackpad pinch to zoom, fit controls, editable page numbers, and chapters when available.
+- **Comfortable reading.** Continuous scrolling without visible scrollbars, trackpad pinch to zoom, fit controls, editable page numbers, and chapters when available.
 - **Find a passage.** Search the whole PDF and jump between highlighted results.
 - **Keep what matters.** Yellow, green, and pink highlights, page bookmarks, and notes. Export passages as Markdown, plain text, or JSON.
 - **Less on screen.** Focus mode, light and dark reading backgrounds, and subtle transitions that respect reduced motion.
@@ -22,6 +22,8 @@ A minimal PDF reader for Mac, with a personal library, quiet colors, and room to
 ## Mac app
 
 Open **Folio.app** from Applications or your Dock. No Terminal, Python, or local server is needed. Open PDFs with `⌘O`, drag them into your library, or choose **Open With → Folio** in Finder.
+
+Select several PDFs with `⌘` or `Shift` in the file picker. They are added together, and the library stays visible so you can choose what to read. Skipping one file lets the remaining files continue.
 
 To build on macOS, install Node.js 22.13 or newer and Apple’s Command Line Tools, then run:
 
@@ -68,7 +70,9 @@ Search and text highlights require selectable PDF text; OCR is not included. Exp
 
 ## PDF safety
 
-PDFs are checked locally before import and reading, including linked files each time they open. Folio rejects detected document and page scripts, embedded attachments, XFA forms, interactive media, and automatic open actions. Documents run in an isolated renderer with PDF actions and external network access disabled. Files are limited to 256 MB and 10,000 pages, with limits on image decoding too.
+PDFs are checked locally before import and reading, including linked files each time they open. Folio rejects detected document and page scripts, XFA forms, interactive media, and automatic open actions. A PDF with embedded files offers **Add anyway**; its attachments stay disabled. Your choice is remembered for that exact PDF, and a changed file requires confirmation again.
+
+Documents run in an isolated renderer with PDF actions and external network access disabled. Files are limited to 256 MB and 10,000 pages, with limits on image decoding too.
 
 These checks reduce risk; they do not certify that a PDF is malware-free or replace antivirus software. Keep the bundled Electron and PDF.js versions current when rebuilding.
 

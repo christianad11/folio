@@ -1,7 +1,9 @@
 import * as pdfjs from './vendor/pdf.mjs?v=6.4.299';
 import {normalizeSearchText,indexPDFText,findPDFMatches} from './pdf-search.mjs';
 import {encodeArchive,decodeArchive,fromBase64} from './library-backup.mjs';
-import {checkPDFBytes,inspectPDFDocument,MAX_PDF_BYTES} from './pdf-safety.mjs';
+import {checkPDFBytes,MAX_PDF_BYTES} from './pdf-safety.mjs';
+import {digestPDF,inspectWithConsent} from './pdf-consent.mjs';
+const pdfAttachmentApprovals=new WeakMap();
 const startupStarted=performance.now();
 
 const desktop=window.folioDesktop;
@@ -107,10 +109,95 @@ $('dialog-close').onclick=$('dialog-cancel').onclick=()=>$('app-dialog').close()
 $('app-dialog').onclose=()=>{dialogResult?.($('app-dialog').returnValue==='submitted');dialogResult=null;};
 $('app-dialog').addEventListener('click',e=>{if(e.target===$('app-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
 
-async function loadPdf(data){checkPDFBytes(data);const task=pdfjs.getDocument({...pdfOptions,data:new Uint8Array(data)});task.onPassword=async(update,reason)=>{let password='';const accepted=await showDialog({title:reason===pdfjs.PasswordResponses.INCORRECT_PASSWORD?'Try that password again':'This PDF is locked',icon:'book',body:'<p>Enter the document password to open it.</p><label for="pdf-password">PDF password</label><input id="pdf-password" type="password" autocomplete="off" required>',submit:'Open PDF',onSubmit:()=>{password=$('pdf-password').value;return true;}});if(accepted)update(password);else task.destroy();};try{const pdf=await task.promise;await inspectPDFDocument(pdf);return pdf;}catch(error){await task.destroy().catch(()=>{});throw error;}}
-async function importFiles(files,handles=[]){if(importBusy){toast('Finishing the current import. Add more PDFs in a moment.');return;}const valid=Array.from(files).filter(f=>f.type==='application/pdf'||/\.pdf$/i.test(f.name));if(!valid.length){toast('Choose a PDF file to add it to your library.',true);return;}importBusy=true;$('add-pdfs').disabled=true;let added=0;const imported=[];try{for(let i=0;i<valid.length;i++){const file=valid[i];toast(`Adding ${file.name}…`,true);let pdf;try{if(file.size>MAX_PDF_BYTES)throw new Error('Choose a PDF smaller than 256 MB.');const data=await file.arrayBuffer();pdf=await loadPdf(data.slice(0));const fingerprint=pdf.fingerprints[0];const duplicate=state.books.find(b=>b.fingerprint===fingerprint);if(duplicate){imported.push(duplicate.id);if(!duplicate.sample){const replacement={id:duplicate.id,...(handles[i]?{handle:handles[i]}:{blob:file})};try{await writeOne('files',replacement);}catch{volatileFiles.set(duplicate.id,{blob:file});}duplicate.source=handles[i]?'linked':'copy';await saveBook(duplicate);}toast(`“${duplicate.title}” is already in your library; its local file is connected.`);continue;}let info={};try{info=(await pdf.getMetadata()).info||{};}catch{}const title=String(info.Title||'').trim();const book={id:'pdf-'+fingerprint,fingerprint,title:title&&title!=='Untitled'?title:file.name.replace(/\.pdf$/i,'').replace(/[_]/g,' '),author:String(info.Author||'').trim(),filename:file.name,pageCount:pdf.numPages,page:1,progress:0,status:state.shelf==='reading'?'reading':state.shelf==='finished'?'finished':'to-read',shelfId:state.shelves.some(s=>s.id===state.shelf)?state.shelf:null,addedAt:Date.now(),lastOpened:0,marks:[],source:handles[i]?'linked':'copy',zoom:'fit-page'};if(book.status==='finished'){book.page=pdf.numPages;book.progress=100;}try{const page=await pdf.getPage(1),viewport=page.getViewport({scale:320/page.getViewport({scale:1}).width}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;book.cover=canvas.toDataURL('image/jpeg',.8);canvas.width=canvas.height=0;}catch{}const stored={id:book.id,...(handles[i]?{handle:handles[i]}:{blob:file})};try{await writeOne('files',stored);}catch(error){if(handles[i]&&db){await writeOne('files',{id:book.id,blob:file});book.source='copy';toast('Local linking is unavailable. A local copy was added to your library instead.',true);}else{volatileFiles.set(book.id,{blob:file});toast('This PDF is available for this session. Local storage is unavailable or full.',true);}}state.books.push(book);await saveBook(book);imported.push(book.id);added++;renderLibrary();}catch(error){if(error?.name!=='AbortException')toast(error.message||`Unable to open ${file.name}. Choose a valid PDF.`,true);}finally{await pdf?.loadingTask?.destroy();}}}finally{importBusy=false;$('add-pdfs').disabled=false;$('file-input').value='';if(added)toast(`${added===1?'A new book':`${added} new books`} added to your library.`);}return imported;}
+async function loadPdf(data,{book=null,filename='This PDF',intent='add'}={}){
+  checkPDFBytes(data);
+  // Start hashing before PDF.js transfers the input buffer to its worker.
+  const digest=digestPDF(data,desktop?.digestPDF);digest.catch(()=>{});
+  const task=pdfjs.getDocument({...pdfOptions,data:new Uint8Array(data)});
+  task.onPassword=async(update,reason)=>{
+    let password='';
+    const accepted=await showDialog({title:reason===pdfjs.PasswordResponses.INCORRECT_PASSWORD?'Try that password again':'This PDF is locked',icon:'book',body:'<p>Enter the document password to open it.</p><label for="pdf-password">PDF password</label><input id="pdf-password" type="password" autocomplete="off" required>',submit:'Open PDF',onSubmit:()=>{password=$('pdf-password').value;return true;}});
+    if(accepted)update(password);else task.destroy();
+  };
+  try{
+    const pdf=await task.promise;
+    const existing=book||state.books.find(item=>item.fingerprint===pdf.fingerprints[0]);
+    const approval=await inspectWithConsent(pdf,{
+      digest,approval:existing?.attachmentConsent,
+      confirmAttachments:()=>showDialog({
+        title:intent==='open'?'Open this PDF anyway?':'Add this PDF anyway?',
+        body:`<p>“${esc(filename)}” contains embedded files.</p><p>They will stay disabled while you read.</p>`,
+        submit:intent==='open'?'Open anyway':'Add anyway',cancel:'Cancel',onSubmit:()=>true,icon:'book'
+      })
+    });
+    pdfAttachmentApprovals.set(pdf,approval);
+    return pdf;
+  }catch(error){await task.destroy().catch(()=>{});throw error;}
+}
+
+async function importFiles(files,handles=[],{quiet=false}={}){
+  const result={ids:[],added:0,existing:0,canceled:0,failed:0};
+  if(importBusy){toast('Finishing the current import. Add more PDFs in a moment.');result.failed++;return result;}
+  const entries=Array.from(files,(file,index)=>({file,handle:handles[index]})).filter(({file})=>file.type==='application/pdf'||/\.pdf$/i.test(file.name));
+  if(!entries.length){toast('Choose a PDF file to add it to your library.',true);result.failed++;return result;}
+  importBusy=true;$('add-pdfs').disabled=true;
+  try{
+    for(const {file,handle} of entries){
+      toast(`Adding ${file.name}…`,true);let pdf;
+      try{
+        if(file.size>MAX_PDF_BYTES)throw new Error('Choose a PDF smaller than 256 MB.');
+        const data=await file.arrayBuffer();
+        pdf=await loadPdf(data.slice(0),{filename:file.name,intent:'add'});
+        const fingerprint=pdf.fingerprints[0],attachmentConsent=pdfAttachmentApprovals.get(pdf);
+        const duplicate=state.books.find(book=>book.fingerprint===fingerprint);
+        if(duplicate){
+          if(!duplicate.sample){
+            const replacement={id:duplicate.id,...(handle?{handle}:{blob:file})};
+            try{await writeOne('files',replacement);volatileFiles.delete(duplicate.id);duplicate.source=handle?'linked':'copy';}
+            catch{volatileFiles.set(duplicate.id,{blob:file});toast('This PDF is connected for this session. Local storage is unavailable.',true);}
+          }
+          duplicate.attachmentConsent=attachmentConsent;await saveBook(duplicate);
+          result.ids.push(duplicate.id);result.existing++;continue;
+        }
+        let info={};try{info=(await pdf.getMetadata()).info||{};}catch{}
+        const title=String(info.Title||'').trim();
+        const book={id:'pdf-'+fingerprint,fingerprint,title:title&&title!=='Untitled'?title:file.name.replace(/\.pdf$/i,'').replace(/[_]/g,' '),author:String(info.Author||'').trim(),filename:file.name,pageCount:pdf.numPages,page:1,progress:0,status:state.shelf==='reading'?'reading':state.shelf==='finished'?'finished':'to-read',shelfId:state.shelves.some(shelf=>shelf.id===state.shelf)?state.shelf:null,addedAt:Date.now(),lastOpened:0,marks:[],source:handle?'linked':'copy',zoom:'fit-page',attachmentConsent};
+        if(book.status==='finished'){book.page=pdf.numPages;book.progress=100;}
+        try{
+          const page=await pdf.getPage(1),viewport=page.getViewport({scale:320/page.getViewport({scale:1}).width}),canvas=document.createElement('canvas');
+          canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+          await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+          book.cover=canvas.toDataURL('image/jpeg',.8);canvas.width=canvas.height=0;
+        }catch{}
+        try{await writeOne('files',{id:book.id,...(handle?{handle}:{blob:file})});}
+        catch{
+          if(handle&&db){await writeOne('files',{id:book.id,blob:file});book.source='copy';}
+          else{volatileFiles.set(book.id,{blob:file});toast('This PDF is available for this session. Local storage is unavailable or full.',true);}
+        }
+        state.books.push(book);await saveBook(book);result.ids.push(book.id);result.added++;renderLibrary();
+      }catch(error){
+        if(error?.name==='AbortException')result.canceled++;
+        else{result.failed++;toast(`${file.name}: ${error.message||'Unable to open this PDF.'}`,true);}
+      }finally{await pdf?.loadingTask?.destroy();}
+    }
+  }finally{
+    importBusy=false;$('add-pdfs').disabled=false;$('file-input').value='';
+    if(!quiet)showImportResult(result);
+  }
+  return result;
+}
+
+function showImportResult(result){
+  const parts=[];
+  if(result.added)parts.push(`${result.added} ${result.added===1?'PDF':'PDFs'} added`);
+  if(result.existing)parts.push(`${result.existing} already in your library`);
+  const skipped=result.canceled+result.failed;
+  if(parts.length){if(skipped)parts.push(`${skipped} skipped`);toast(parts.join(' · ')+'.');}
+  else if(result.canceled&&!result.failed)toast('No PDFs added.');
+}
+
 async function linkFiles(){if(desktop){$('add-menu').hidden=true;$('add-options-toggle').setAttribute('aria-expanded','false');return chooseNativePDFs({linked:true});} $('add-menu').hidden=true;$('add-options-toggle').setAttribute('aria-expanded','false');if(!window.showOpenFilePicker){toast('This browser can keep a local copy. Choose a PDF to add it.');$('file-input').click();return;}try{const handles=await window.showOpenFilePicker({multiple:true,types:[{description:'PDF documents',accept:{'application/pdf':['.pdf']}}]});const files=await Promise.all(handles.map(h=>h.getFile()));await importFiles(files,handles);}catch(error){if(error.name!=='AbortError')toast('Unable to link that file. Use Add PDFs to keep a browser copy.',true);}}
-async function getBookData(book){if(book.sample){const r=await fetch('./assets/the-art-of-paying-attention.pdf');if(!r.ok)throw new Error('The sample PDF could not be loaded.');return r.arrayBuffer();}if(desktop){const bytes=new Uint8Array(await desktop.readPDF(book.id));return bytes.buffer;}const record=volatileFiles.get(book.id)||(db?await readOne('files',book.id):null);if(!record)throw new Error('This PDF is no longer stored here. Add the original PDF again to reconnect it.');if(record.handle){if(await record.handle.queryPermission({mode:'read'})!=='granted'&&await record.handle.requestPermission({mode:'read'})!=='granted')throw new Error('Allow access to the linked file to continue reading.');return(await record.handle.getFile()).arrayBuffer();}return record.blob.arrayBuffer();}
+async function getBookData(book){if(book.sample){const r=await fetch('./assets/the-art-of-paying-attention.pdf');if(!r.ok)throw new Error('The sample PDF could not be loaded.');return r.arrayBuffer();}const temporary=volatileFiles.get(book.id);if(temporary)return temporary.blob.arrayBuffer();if(desktop){const bytes=new Uint8Array(await desktop.readPDF(book.id));return bytes.buffer;}const record=(db?await readOne('files',book.id):null);if(!record)throw new Error('This PDF is no longer stored here. Add the original PDF again to reconnect it.');if(record.handle){if(await record.handle.queryPermission({mode:'read'})!=='granted'&&await record.handle.requestPermission({mode:'read'})!=='granted')throw new Error('Allow access to the linked file to continue reading.');return(await record.handle.getFile()).arrayBuffer();}return record.blob.arrayBuffer();}
 
 let pageSlots = [], pageObserver, readerGeneration = 0, renderQueue = [], activeRenders = 0;
 let scrollFrame = 0, positionTimer, restoringLayout = false;
@@ -545,10 +632,10 @@ async function openBook(id) {
     const data=await getBookData(book);if (op!==openingId) return;
     await state.pdf?.loadingTask?.destroy();state.pdf=null;
     $('page-loading').querySelector('span:last-child').textContent='Checking PDF…';
-    const pdf=await loadPdf(data);
+    const pdf=await loadPdf(data,{book,filename:book.filename||book.title,intent:'open'});
     $('page-loading').querySelector('span:last-child').textContent='Opening PDF…';
     if (op!==openingId) {await pdf.loadingTask.destroy();return;}
-    state.pdf=pdf;book.pageCount=pdf.numPages;book.fingerprint=pdf.fingerprints[0];
+    state.pdf=pdf;book.attachmentConsent=pdfAttachmentApprovals.get(pdf);book.pageCount=pdf.numPages;book.fingerprint=pdf.fingerprints[0];
     state.zoom=book.zoom||'fit-page';syncZoomSelect();state.page=Math.min(book.page||1,pdf.numPages);
     book.lastOpened=Date.now();if (book.status!=='finished') book.status='reading';
     state.outline=[];renderChapters();renderSaved();
@@ -557,7 +644,7 @@ async function openBook(id) {
     $('reader-main').focus({preventScroll:true});loadOutline(pdf,op);location.hash='read';
   } catch(error) {
     if (op!==openingId) return;
-    backToLibrary();toast(error.message||'Unable to open this PDF. Add it again and try once more.',true);
+    backToLibrary();if(error?.name!=='AbortException')toast(error.message||'Unable to open this PDF. Add it again and try once more.',true);
   }
 }
 
@@ -724,15 +811,25 @@ let nativeImports=Promise.resolve();
 function chooseNativePDFs(options={}){
   nativeImports=nativeImports.catch(()=>{}).then(async()=>{
     const selected=options.files||await desktop.pickPDFs();if(!selected.length)return;
+    if(state.view==='reader')backToLibrary();
+    const total={ids:[],added:0,existing:0,canceled:0,failed:0};
     try{
-      const files=[];
-      for(const item of selected){const bytes=await desktop.readSelectedPDF(item.token);files.push(new File([bytes],item.name,{type:'application/pdf',lastModified:item.lastModified}));}
-      if(state.view==='reader')backToLibrary();
-      const handles=options.linked?selected.map(item=>({nativeToken:item.token})):[];
-      const imported=await importFiles(files,handles);
-      if(options.open&&imported?.length)await openBook(imported[0]);
-    }catch(error){toast(error.message||'Unable to open this PDF.',true);}
-    finally{await desktop.releaseSelectedPDFs(selected.map(item=>item.token));}
+      // Read and import one file at a time so a large selection stays bounded.
+      for(const item of selected){
+        try{
+          if(item.error)throw new Error(item.error);
+          const bytes=await desktop.readSelectedPDF(item.token);
+          const file=new File([bytes],item.name,{type:'application/pdf',lastModified:item.lastModified});
+          const result=await importFiles([file],options.linked?[{nativeToken:item.token}]:[],{quiet:true});
+          total.ids.push(...result.ids);
+          for(const key of ['added','existing','canceled','failed'])total[key]+=result[key];
+        }catch(error){total.failed++;toast(`${item.name}: ${error.message||'Unable to open this PDF.'}`,true);}
+        finally{if(item.token)await desktop.releaseSelectedPDFs([item.token]);}
+      }
+      showImportResult(total);
+      // A multi-file import ends in the library so every added book is visible.
+      if(selected.length===1&&options.open&&total.ids.length)await openBook(total.ids[0]);
+    }catch(error){toast(error.message||'Unable to add these PDFs.',true);}
   });
   return nativeImports;
 }
@@ -755,15 +852,15 @@ async function runDesktopCommand(command){
     if(command==='find'){if(state.view==='reader'&&state.pdf)setPDFSearch(true);else $('book-search').focus();}
     if(command==='focus'&&state.view==='reader')toggleFocus();
     if(command==='shortcuts')$('help-button').click();
-    if(command==='safety')return showDialog({title:'PDF safety',icon:'book',onlyClose:true,body:'<p>Folio checks PDFs locally before reading and blocks detected scripts, embedded files, active forms, and interactive media.</p><p>Documents stay in an isolated reader. PDF actions and external network requests are disabled.</p><p>These checks reduce risk; they are not an antivirus guarantee.</p>'});
+    if(command==='safety')return showDialog({title:'PDF safety',icon:'book',onlyClose:true,body:'<p>Folio checks PDFs locally before reading and blocks detected scripts, active forms, and interactive media.</p><p>You can add a PDF with embedded files after confirming. Its attachments stay disabled. PDF actions and external network requests are disabled.</p><p>These checks reduce risk; they are not an antivirus guarantee.</p>'});
     if(command==='export')return exportPassages(state.view==='reader'?[state.book]:state.books,'md');
     if(command==='backup')return backupLibrary();
     if(command==='restore'){
       await persistReadingPosition();await Promise.all([...nativeWrites]);
       const selected=await desktop.restoreLibrary();if(!selected)return;
       toast('Checking library PDFs…',true);const archive=await decodeArchive(selected.bytes);
-      for(const file of archive.files){const pdf=await loadPdf(fromBase64(file.data));await pdf.loadingTask.destroy();}
-      const restored=await desktop.importLibrary(selected.bytes);
+      for(const file of archive.files){const book=archive.books.find(item=>item.id===file.id);const pdf=await loadPdf(fromBase64(file.data),{filename:book?.filename||book?.title,intent:'add'});book.attachmentConsent=pdfAttachmentApprovals.get(pdf);await pdf.loadingTask.destroy();}
+      const restored=await desktop.importLibrary(new TextEncoder().encode(JSON.stringify(archive)));
       backToLibrary();state.books=await readAll('books');state.shelves=await readAll('shelves');renderLibrary();toast(`${restored.books} ${restored.books===1?'book':'books'} restored.`);
     }
   }catch(error){toast(error.message||'Unable to complete this action.',true);}

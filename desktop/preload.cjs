@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('folioDesktop', {
   readSelectedPDF: token => ipcRenderer.invoke('folio:read-selected-pdf', token),
   releaseSelectedPDFs: tokens => ipcRenderer.invoke('folio:release-selected-pdfs', tokens),
   readPDF: id => ipcRenderer.invoke('folio:read-pdf', id),
+  digestPDF: bytes => ipcRenderer.invoke('folio:pdf-digest', bytes),
   saveText: data => ipcRenderer.invoke('folio:save-text', data),
   backupLibrary: () => ipcRenderer.invoke('folio:backup-library'),
   restoreLibrary: () => ipcRenderer.invoke('folio:restore-library'),

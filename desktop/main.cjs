@@ -59,6 +59,10 @@ function installIPC() {
   handle('write-one', (name, value) => store.writeOne(name, value));
   handle('remove-one', (name, id) => store.removeOne(name, id));
   handle('read-pdf', id => store.readPDF(id));
+  handle('pdf-digest', bytes => {
+    if (!(bytes instanceof Uint8Array) || bytes.length > 256 * 1024 * 1024) throw new Error('Choose a PDF smaller than 256 MB.');
+    return crypto.createHash('sha256').update(bytes).digest('hex');
+  });
   handle('write-file', value => {
     if (value?.token) {
       const filename = selections.get(value.token);
@@ -68,7 +72,10 @@ function installIPC() {
   });
   handle('pick-pdfs', async () => {
     const result = await dialog.showOpenDialog(window, {title: 'Add PDFs', filters: [{name: 'PDF documents', extensions: ['pdf']}], properties: ['openFile', 'multiSelections']});
-    return result.canceled ? [] : result.filePaths.map(grantPDF);
+    return result.canceled ? [] : result.filePaths.map(filename => {
+      try { return grantPDF(filename); }
+      catch (error) { return {name: path.basename(filename), error: error.message}; }
+    });
   });
   handle('read-selected-pdf', token => {
     const filename = selections.get(token);

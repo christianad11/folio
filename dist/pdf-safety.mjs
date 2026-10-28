@@ -15,16 +15,16 @@ function hasActions(actions) {
   return values(actions).some(value => Array.isArray(value) ? value.length > 0 : !!value);
 }
 
-const blockedAnnotationTypes = new Set([17, 18, 19, 21, 25, 27]);
+const blockedAnnotationTypes = new Set([18, 19, 21, 25, 27]);
 
-export async function inspectPDFDocument(pdf) {
+export async function inspectPDFDocument(pdf, {allowEmbeddedFiles = false} = {}) {
   if (!Number.isInteger(pdf.numPages) || pdf.numPages < 1 || pdf.numPages > MAX_PDF_PAGES) throw new Error('Choose a PDF with fewer than 10,000 pages.');
   const [metadata, actions, attachments, fields, openAction] = await Promise.all([
     pdf.getMetadata(), pdf.getJSActions(), pdf.getAttachments(), pdf.getFieldObjects(), pdf.getOpenAction()
   ]);
   if (metadata.info?.IsXFAPresent || pdf.isPureXfa) throw new Error('This PDF contains an XFA form. Folio blocks active forms.');
   if (hasActions(actions) || values(fields).some(items => items.some(field => hasActions(field.actions)))) throw new Error('This PDF contains JavaScript. Folio blocks PDF scripts.');
-  if (values(attachments).length) throw new Error('This PDF contains embedded files. Use a copy without attachments.');
+  let hasEmbeddedFiles = values(attachments).length > 0;
   const action = property(openAction, 'action');
   if (action && action !== 'GoTo') throw new Error('This PDF tries to run an action when opened. Folio blocks automatic actions.');
 
@@ -37,9 +37,11 @@ export async function inspectPDFDocument(pdf) {
       const page = await pdf.getPage(number);
       const [pageActions, annotations] = await Promise.all([page.getJSActions(), page.getAnnotations({intent: 'any'})]);
       if (hasActions(pageActions) || annotations.some(item => hasActions(item.actions) || item.isJs)) throw new Error('This PDF contains a page script. Folio blocks PDF scripts.');
-      if (annotations.some(item => blockedAnnotationTypes.has(item.annotationType) || item.file || item.attachment)) throw new Error('This PDF contains embedded files or interactive media. Folio blocks this content.');
+      if (annotations.some(item => blockedAnnotationTypes.has(item.annotationType))) throw new Error('This PDF contains interactive media. Folio blocks this content.');
+      if (annotations.some(item => item.annotationType === 17 || item.file || item.attachment)) hasEmbeddedFiles = true;
       if (number % 16 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
   }));
-  return {policyVersion: 1, checkedAt: Date.now()};
+  if (hasEmbeddedFiles && !allowEmbeddedFiles) throw new Error('This PDF contains embedded files.');
+  return {policyVersion: 2, checkedAt: Date.now(), hasEmbeddedFiles};
 }

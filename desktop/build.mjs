@@ -12,6 +12,7 @@ const release = path.join(root, 'release');
 const iconset = path.join(root, 'desktop/Folio.iconset');
 const cache = path.join(root, '.cache');
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+const checksums = JSON.parse(await fs.readFile(path.join(root, 'node_modules/electron/checksums.json'), 'utf8'));
 const arch = process.env.FOLIO_ARCH || process.arch;
 if (process.platform !== 'darwin' || !['arm64', 'x64'].includes(arch)) throw new Error('Build Folio on macOS for arm64 or x64.');
 
@@ -48,7 +49,7 @@ const [folder] = await packager({
   dir: root, name: 'Folio', appBundleId: 'ad.christian.folio', appCategoryType: 'public.app-category.productivity',
   platform: 'darwin', arch, out: release, overwrite: true, asar: true, prune: true,
   electronVersion: manifest.devDependencies.electron, icon, ignore,
-  download: {cacheRoot: path.join(cache, 'electron')},
+  download: {cacheRoot: path.join(cache, 'electron'), checksums},
   extendInfo: {
     NSHumanReadableCopyright: 'Folio',
     CFBundleDocumentTypes: [{CFBundleTypeName: 'PDF document', CFBundleTypeRole: 'Viewer', LSHandlerRank: 'Alternate', LSItemContentTypes: ['com.adobe.pdf']}],
