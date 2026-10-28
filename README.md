@@ -2,6 +2,8 @@
 
 A minimal PDF reader for Mac, with a personal library, quiet colors, and room to focus. Works entirely locally. A browser version is included too.
 
+**[Download Folio v0.2.3 for Apple Silicon](https://github.com/christianad11/folio/releases/download/v0.2.3/Folio-0.2.3-arm64.zip)**
+
 ![Folio library with shelves and reading progress](docs/screenshots/library.jpg)
 
 ## Features
@@ -19,9 +21,17 @@ A minimal PDF reader for Mac, with a personal library, quiet colors, and room to
 
 </details>
 
-## Build the Mac app
+## Mac app
 
-Folio is distributed as source. Build it once on your Mac, then open it from Applications or your Dock.
+The download supports **Apple Silicon Macs — M1 and later — running macOS 13 Ventura or newer**. Unzip it, move **Folio.app** into **Applications**, and open it. Drag its icon to your Dock if you like. No Node.js, Python, Terminal, or local server is needed to read.
+
+The app is ad-hoc signed and **not notarized by Apple**. macOS may block the first launch. If you trust the download, follow [Apple’s first-launch instructions](https://support.apple.com/en-us/102445): try opening the app, then use **System Settings → Privacy & Security → Open Anyway**.
+
+Versioned downloads and SHA-256 checksums are available in [Releases](https://github.com/christianad11/folio/releases). This release includes an Apple Silicon build only.
+
+## Build from source
+
+You can also build Folio on your own Mac.
 
 Requires **macOS 13 Ventura or later**, **[Node.js 22.13 or newer](https://nodejs.org/en/download)**, and **Apple’s Command Line Tools**. Install the Command Line Tools if needed:
 
@@ -47,7 +57,7 @@ The build automatically matches your Mac:
 
 Move **Folio.app** into **Applications**, open it, and drag its icon to your Dock. Node.js and Terminal are only needed for building; reading runs in the standalone app with no local server.
 
-The build signs the app locally and also creates a ZIP in `release/`. Generated apps and archives are excluded from Git. Prebuilt app downloads are not published.
+The build signs the app locally and also creates a ZIP in `release/`. Generated apps and archives are excluded from Git; downloadable app bundles are attached to GitHub releases.
 
 <details>
 <summary>Build options</summary>
@@ -115,7 +125,7 @@ These checks reduce risk; they do not certify that a PDF is malware-free or repl
 
 ## Typography
 
-The previews use [Michelangelus by Microsoft](https://www.microsoft.com/en-us/download/details.aspx?id=108856) for titles. The font is not included in the repository; builds use a system serif fallback by default. To use it locally, download it from Microsoft and place `Michelangelus-Regular.ttf` in `dist/assets/fonts/`. For a personal desktop build that includes your locally installed font, run `npm run build:mac -- --local-font`.
+The previews use [Michelangelus by Microsoft](https://www.microsoft.com/en-us/download/details.aspx?id=108856) for titles. The font is not included in the repository or release downloads; builds use a system serif fallback by default. To use it locally, download it from Microsoft and place `Michelangelus-Regular.ttf` in `dist/assets/fonts/`. For a personal desktop build that includes your locally installed font, run `npm run build:mac -- --local-font`.
 
 ## Source
 
