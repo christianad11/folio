@@ -19,22 +19,57 @@ A minimal PDF reader for Mac, with a personal library, quiet colors, and room to
 
 </details>
 
-## Mac app
+## Build the Mac app
 
-Open **Folio.app** from Applications or your Dock. No Terminal, Python, or local server is needed. Open PDFs with `⌘O`, drag them into your library, or choose **Open With → Folio** in Finder.
+Folio is distributed as source. Build it once on your Mac, then open it from Applications or your Dock.
 
-Select several PDFs with `⌘` or `Shift` in the file picker. They are added together, and the library stays visible so you can choose what to read. Skipping one file lets the remaining files continue.
-
-Use a custom shelf’s **⋯** menu to rename or delete it. Deleting a shelf keeps its books. Drag book covers to arrange a shelf, or use **Move earlier** / **Move later** in a book’s menu. Choose **Shelf order** in the sorting control to return to your saved arrangement.
-
-To build on macOS, install Node.js 22.13 or newer and Apple’s Command Line Tools, then run:
+Requires **macOS 13 Ventura or later**, **[Node.js 22.13 or newer](https://nodejs.org/en/download)**, and **Apple’s Command Line Tools**. Install the Command Line Tools if needed:
 
 ```sh
+xcode-select --install
+```
+
+Clone and build:
+
+```sh
+git clone https://github.com/christianad11/folio.git
+cd folio
 npm ci
 npm run build:mac
 ```
 
-The app and a ZIP are created in `release/` for your Mac’s architecture. Add `-- --dmg` to also create a disk image. The build uses a local ad-hoc signature; public distribution requires Developer ID signing and notarization.
+The build automatically matches your Mac:
+
+| Your Mac | App location |
+| --- | --- |
+| Apple Silicon — M1 and later | `release/Folio-darwin-arm64/Folio.app` |
+| Intel | `release/Folio-darwin-x64/Folio.app` |
+
+Move **Folio.app** into **Applications**, open it, and drag its icon to your Dock. Node.js and Terminal are only needed for building; reading runs in the standalone app with no local server.
+
+The build signs the app locally and also creates a ZIP in `release/`. Generated apps and archives are excluded from Git. Prebuilt app downloads are not published.
+
+<details>
+<summary>Build options</summary>
+
+To build for another Mac architecture, set `FOLIO_ARCH`:
+
+```sh
+FOLIO_ARCH=arm64 npm run build:mac
+FOLIO_ARCH=x64 npm run build:mac
+```
+
+Add `-- --dmg` to create a disk image too. The build uses a local ad-hoc signature. Distributing Apple-verified downloads would require a Developer ID certificate and notarization.
+
+</details>
+
+## Using Folio
+
+Open PDFs with `⌘O`, drag them into your library, or choose **Open With → Folio** in Finder.
+
+Select several PDFs with `⌘` or `Shift` in the file picker. They are added together, and the library stays visible so you can choose what to read. Skipping one file lets the remaining files continue.
+
+Use a custom shelf’s **⋯** menu to rename or delete it. Deleting a shelf keeps its books. Drag book covers to arrange a shelf, or use **Move earlier** / **Move later** in a book’s menu. Choose **Shelf order** in the sorting control to return to your saved arrangement.
 
 ## Browser version
 
@@ -80,10 +115,10 @@ These checks reduce risk; they do not certify that a PDF is malware-free or repl
 
 ## Typography
 
-The previews use [Michelangelus by Microsoft](https://www.microsoft.com/en-us/download/details.aspx?id=108856) for titles. The font is not redistributed here. To use it locally, download it from Microsoft and place `Michelangelus-Regular.ttf` in `dist/assets/fonts/`. Folio uses a serif fallback otherwise. For a personal desktop build that includes your locally installed font, run `npm run build:mac -- --local-font`.
+The previews use [Michelangelus by Microsoft](https://www.microsoft.com/en-us/download/details.aspx?id=108856) for titles. The font is not included in the repository; builds use a system serif fallback by default. To use it locally, download it from Microsoft and place `Michelangelus-Regular.ttf` in `dist/assets/fonts/`. For a personal desktop build that includes your locally installed font, run `npm run build:mac -- --local-font`.
 
 ## Source
 
 Plain HTML, CSS, and JavaScript in `dist/`. The desktop app uses Electron with an isolated renderer, native dialogs, and local SQLite storage; the optional browser version uses Python’s standard library. PDF rendering uses bundled **Mozilla PDF.js 6.4.299**. See [third-party notices](THIRD_PARTY_NOTICES.md) for its licenses. The included sample PDF contains original Folio field notes.
 
-Run `npm test` to check desktop persistence, backup and restore, and the local asset boundary.
+Run `npm test` to check persistence, shelf editing and ordering, backup and restore, PDF safety, and the local asset boundary.

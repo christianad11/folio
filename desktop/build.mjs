@@ -8,6 +8,7 @@ import {flipFuses, FuseVersion, FuseV1Options} from '@electron/fuses';
 
 const exec = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const localFont = process.argv.includes('--local-font');
 const release = path.join(root, 'release');
 const iconset = path.join(root, 'desktop/Folio.iconset');
 const cache = path.join(root, '.cache');
@@ -44,11 +45,20 @@ const ignore = [
   /^\/(?:README\.md|THIRD_PARTY_NOTICES\.md|server\.py|Start Folio\.command|package-lock\.json|\.gitignore)$/,
   /^\/desktop\/(?:build\.mjs|make-icon\.swift|Folio\.icns|Folio\.iconset)(?:\/|$)/
 ];
-if (!process.argv.includes('--local-font')) ignore.push(/^\/dist\/assets\/fonts\//);
+if (!localFont) ignore.push(/^\/dist\/assets\/fonts\//);
 const [folder] = await packager({
   dir: root, name: 'Folio', appBundleId: 'ad.christian.folio', appCategoryType: 'public.app-category.productivity',
   platform: 'darwin', arch, out: release, overwrite: true, asar: true, prune: true,
   electronVersion: manifest.devDependencies.electron, icon, ignore,
+  afterCopy: [async ({buildPath}) => {
+    if (localFont) return;
+    const htmlPath = path.join(buildPath, 'dist/index.html');
+    const cssPath = path.join(buildPath, 'dist/styles.css');
+    const html = await fs.readFile(htmlPath, 'utf8');
+    const css = await fs.readFile(cssPath, 'utf8');
+    await fs.writeFile(htmlPath, html.replace(/\s*<link[^>]+href="\.\/assets\/fonts\/Michelangelus-Regular\.ttf"[^>]*>/, ''));
+    await fs.writeFile(cssPath, css.replace(/@font-face\{[^}]*font-family:"Michelangelus"[^}]*\}\n?/, ''));
+  }],
   download: {cacheRoot: path.join(cache, 'electron'), checksums},
   extendInfo: {
     NSHumanReadableCopyright: 'Folio',
