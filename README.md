@@ -72,7 +72,7 @@ Search and text highlights require selectable PDF text; OCR is not included. Exp
 
 PDFs are checked locally before import and reading, including linked files each time they open. Folio rejects detected document and page scripts, XFA forms, interactive media, and automatic open actions. A PDF with embedded files offers **Add anyway**; its attachments stay disabled. Your choice is remembered for that exact PDF, and a changed file requires confirmation again.
 
-Documents run in an isolated renderer with PDF actions and external network access disabled. Files are limited to 256 MB and 10,000 pages, with limits on image decoding too.
+Documents run in an isolated renderer with PDF actions and external network access disabled. Files are limited to 256 MB and 10,000 pages. Large images are resized to a bounded canvas budget so covers and page content remain visible.
 
 These checks reduce risk; they do not certify that a PDF is malware-free or replace antivirus software. Keep the bundled Electron and PDF.js versions current when rebuilding.
 

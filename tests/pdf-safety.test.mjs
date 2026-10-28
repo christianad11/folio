@@ -1,19 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import {checkPDFBytes, inspectPDFDocument} from '../dist/pdf-safety.mjs';
+import {deflateSync} from 'node:zlib';
+import {checkPDFBytes, inspectPDFDocument, PDF_DOCUMENT_OPTIONS} from '../dist/pdf-safety.mjs';
 import {digestPDF, inspectWithConsent} from '../dist/pdf-consent.mjs';
 
 // Parsing-only tests use the actual bundled PDF.js worker. No canvas is drawn.
 globalThis.DOMMatrix = class DOMMatrix {};
 const pdfjs = await import('../dist/vendor/pdf.mjs');
 
-function fixture({catalog = '', page = '', extra = []} = {}) {
+function fixture({catalog = '', page = '', resources = '', contents = '', extra = []} = {}) {
   const objects = [
     `<< /Type /Catalog /Pages 2 0 R ${catalog} >>`,
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << >> /Contents 4 0 R ${page} >>`,
-    '<< /Length 0 >>\nstream\n\nendstream', ...extra
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << ${resources} >> /Contents 4 0 R ${page} >>`,
+    `<< /Length ${Buffer.byteLength(contents)} >>\nstream\n${contents}\nendstream`, ...extra
   ];
   let output = '%PDF-1.7\n', offsets = [0];
   objects.forEach((body, i) => { offsets.push(Buffer.byteLength(output)); output += `${i + 1} 0 obj\n${body}\nendobj\n`; });
@@ -26,7 +27,7 @@ function fixture({catalog = '', page = '', extra = []} = {}) {
 
 async function withPDF(bytes, action) {
   checkPDFBytes(bytes);
-  const task = pdfjs.getDocument({data: bytes, isEvalSupported: false, enableXfa: false, stopAtErrors: true, useSystemFonts: true});
+  const task = pdfjs.getDocument({...PDF_DOCUMENT_OPTIONS, data: bytes, useSystemFonts: true});
   try { return await action(await task.promise); }
   finally { await task.destroy(); }
 }
@@ -92,6 +93,26 @@ test('page attachment annotations receive the same exception as catalog attachme
   await withPDF(bytes, async pdf => {
     const approval = await inspectWithConsent(pdf, {digest, confirmAttachments: async () => true});
     assert.equal(approval.sha256, digest);
+  });
+});
+
+test('an approved attachment PDF keeps a large cover image in its page content', async () => {
+  // A 36-megapixel, one-bit cover reproduces the old 32-megapixel omission.
+  const image=deflateSync(Buffer.alloc(6000*6000/8,0x55)).toString('hex')+'>';
+  const bytes=fixture({
+    catalog:'/Names << /EmbeddedFiles << /Names [(note.txt) 6 0 R] >> >>',
+    resources:'/XObject << /Cover 5 0 R >>',contents:'q 200 0 0 200 0 0 cm /Cover Do Q',
+    extra:[
+      `<< /Type /XObject /Subtype /Image /Width 6000 /Height 6000 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter [/ASCIIHexDecode /FlateDecode] /Length ${image.length} >>\nstream\n${image}\nendstream`,
+      '<< /Type /Filespec /F (note.txt) /EF << /F 7 0 R >> >>',
+      '<< /Type /EmbeddedFile /Length 4 >>\nstream\ntest\nendstream'
+    ]
+  });
+  const digest=await digestPDF(bytes);
+  await withPDF(bytes,async pdf=>{
+    await inspectWithConsent(pdf,{digest,confirmAttachments:async()=>true});
+    const page=await pdf.getPage(1),operators=await page.getOperatorList();
+    assert.ok(operators.fnArray.includes(pdfjs.OPS.paintImageXObject),'the cover is retained for rendering');
   });
 });
 

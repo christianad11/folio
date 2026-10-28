@@ -1,7 +1,7 @@
 import * as pdfjs from './vendor/pdf.mjs?v=6.4.299';
 import {normalizeSearchText,indexPDFText,findPDFMatches} from './pdf-search.mjs';
 import {encodeArchive,decodeArchive,fromBase64} from './library-backup.mjs';
-import {checkPDFBytes,MAX_PDF_BYTES} from './pdf-safety.mjs';
+import {checkPDFBytes,MAX_PDF_BYTES,PDF_DOCUMENT_OPTIONS} from './pdf-safety.mjs';
 import {digestPDF,inspectWithConsent} from './pdf-consent.mjs';
 const pdfAttachmentApprovals=new WeakMap();
 const startupStarted=performance.now();
@@ -25,7 +25,7 @@ const uid = () => {
 const state = {books:[], shelves:[], shelf:'all', search:'', sort:'recent', book:null, pdf:null, page:1, scale:1, zoom:'fit-page', outline:[], panel:null, focus:false, color:'yellow', selection:null, renderId:0, view:'library'};
 let db, toastTimer, dialogSubmit, dialogResult, contextMenu, openingId=0, importBusy=false, pinchTimer, gestureStartScale=1, pointerDrag=null, suppressBookClick=0;
 const volatileFiles = new Map();
-const pdfOptions = {cMapUrl:new URL('./vendor/cmaps/',import.meta.url).href,cMapPacked:true,standardFontDataUrl:new URL('./vendor/standard_fonts/',import.meta.url).href,wasmUrl:new URL('./vendor/wasm/',import.meta.url).href,isEvalSupported:false,enableXfa:false,stopAtErrors:true,maxImageSize:32*1024*1024,canvasMaxAreaInBytes:64*1024*1024};
+const pdfOptions = {...PDF_DOCUMENT_OPTIONS,cMapUrl:new URL('./vendor/cmaps/',import.meta.url).href,cMapPacked:true,standardFontDataUrl:new URL('./vendor/standard_fonts/',import.meta.url).href,wasmUrl:new URL('./vendor/wasm/',import.meta.url).href};
 
 function toast(message, persistent=false) {
   clearTimeout(toastTimer); $('toast-text').textContent=message; $('toast').hidden=false;
@@ -163,12 +163,8 @@ async function importFiles(files,handles=[],{quiet=false}={}){
         const title=String(info.Title||'').trim();
         const book={id:'pdf-'+fingerprint,fingerprint,title:title&&title!=='Untitled'?title:file.name.replace(/\.pdf$/i,'').replace(/[_]/g,' '),author:String(info.Author||'').trim(),filename:file.name,pageCount:pdf.numPages,page:1,progress:0,status:state.shelf==='reading'?'reading':state.shelf==='finished'?'finished':'to-read',shelfId:state.shelves.some(shelf=>shelf.id===state.shelf)?state.shelf:null,addedAt:Date.now(),lastOpened:0,marks:[],source:handle?'linked':'copy',zoom:'fit-page',attachmentConsent};
         if(book.status==='finished'){book.page=pdf.numPages;book.progress=100;}
-        try{
-          const page=await pdf.getPage(1),viewport=page.getViewport({scale:320/page.getViewport({scale:1}).width}),canvas=document.createElement('canvas');
-          canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
-          await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
-          book.cover=canvas.toDataURL('image/jpeg',.8);canvas.width=canvas.height=0;
-        }catch{}
+        book.cover=await createBookCover(pdf);
+        if(book.cover)book.coverVersion=1;
         try{await writeOne('files',{id:book.id,...(handle?{handle}:{blob:file})});}
         catch{
           if(handle&&db){await writeOne('files',{id:book.id,blob:file});book.source='copy';}
@@ -185,6 +181,17 @@ async function importFiles(files,handles=[],{quiet=false}={}){
     if(!quiet)showImportResult(result);
   }
   return result;
+}
+
+async function createBookCover(pdf){
+  const canvas=document.createElement('canvas');
+  try{
+    const page=await pdf.getPage(1),viewport=page.getViewport({scale:320/page.getViewport({scale:1}).width});
+    canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+    await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+    return canvas.toDataURL('image/jpeg',.8);
+  }catch{return undefined;}
+  finally{canvas.width=canvas.height=0;}
 }
 
 function showImportResult(result){
@@ -636,6 +643,11 @@ async function openBook(id) {
     $('page-loading').querySelector('span:last-child').textContent='Opening PDF…';
     if (op!==openingId) {await pdf.loadingTask.destroy();return;}
     state.pdf=pdf;book.attachmentConsent=pdfAttachmentApprovals.get(pdf);book.pageCount=pdf.numPages;book.fingerprint=pdf.fingerprints[0];
+    if(!book.sample&&book.coverVersion!==1){
+      const cover=await createBookCover(pdf);
+      if(cover){book.cover=cover;book.coverVersion=1;}
+    }
+    if(op!==openingId)return;
     state.zoom=book.zoom||'fit-page';syncZoomSelect();state.page=Math.min(book.page||1,pdf.numPages);
     book.lastOpened=Date.now();if (book.status!=='finished') book.status='reading';
     state.outline=[];renderChapters();renderSaved();
@@ -797,9 +809,9 @@ async function exportPassages(books,format='md'){const chosen=books.filter(b=>b.
 async function finishStartup(){
   const splash=$('startup-screen');
   await Promise.race([document.fonts.ready,new Promise(resolve=>setTimeout(resolve,400))]);
+  await new Promise(resolve=>setTimeout(resolve,Math.max(0,3000-(performance.now()-startupStarted))));
   if(!reducedMotion.matches){
-    await new Promise(resolve=>setTimeout(resolve,Math.max(0,360-(performance.now()-startupStarted))));
-    const fade=splash.animate([{opacity:1},{opacity:0}],{duration:220,easing:'ease-out',fill:'forwards'});
+    const fade=splash.animate([{opacity:1},{opacity:0}],{duration:350,easing:'ease-out',fill:'forwards'});
     await fade.finished.catch(()=>{});
   }
   splash.remove();

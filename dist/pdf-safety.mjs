@@ -1,6 +1,15 @@
 export const MAX_PDF_BYTES = 256 * 1024 * 1024;
 export const MAX_PDF_PAGES = 10000;
 
+export const PDF_DOCUMENT_OPTIONS = Object.freeze({
+  isEvalSupported: false,
+  enableXfa: false,
+  stopAtErrors: true,
+  // Resize large images to the canvas budget rather than dropping page content.
+  maxImageSize: -1,
+  canvasMaxAreaInBytes: 64 * 1024 * 1024
+});
+
 export function checkPDFBytes(data) {
   const bytes = new Uint8Array(data);
   if (!bytes.length || bytes.length > MAX_PDF_BYTES) throw new Error('Choose a PDF smaller than 256 MB.');
