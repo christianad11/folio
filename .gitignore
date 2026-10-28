@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+.sites-runtime/
+.env
+.env.*
+!.env.example
+*.log
+
+# Install the title font locally from Microsoft; do not redistribute it.
+dist/assets/fonts/*
+!dist/assets/fonts/.gitkeep
