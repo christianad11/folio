@@ -8,6 +8,10 @@ node_modules/
 .env.*
 !.env.example
 *.log
+.cache/
+release/
+desktop/Folio.icns
+desktop/Folio.iconset/
 
 # Install the title font locally from Microsoft; do not redistribute it.
 dist/assets/fonts/*

@@ -68,3 +68,25 @@
 @media(max-width:450px){.book-title{font-size:13px}.reader-title-block h1{font-size:12px}}
 
 @media(prefers-reduced-motion:no-preference){.reading-progress-line,.book-card .progress-fill{transition:width 180ms ease-out}}
+
+/* A quiet draggable strip keeps the Mac window controls clear of the reader. */
+:root.desktop{--desktop-inset:38px}
+:root.desktop.is-fullscreen{--desktop-inset:0px}
+.desktop body{padding-top:var(--desktop-inset)}
+.desktop-chrome{position:fixed;inset:0 0 auto;height:var(--desktop-inset);z-index:150;app-region:drag;-webkit-app-region:drag;background:var(--bg)}
+.desktop .library-layout,.desktop .library-sidebar{min-height:calc(100dvh - var(--desktop-inset))}
+.desktop .library-sidebar{top:var(--desktop-inset)}
+.desktop .reader-layout{height:calc(100dvh - var(--desktop-inset))}
+.desktop .reader-workspace{height:calc(100dvh - var(--desktop-inset) - 82px)}
+.desktop .focus-mode .reader-workspace{height:calc(100dvh - var(--desktop-inset))}
+.desktop .reader-search{top:calc(96px + var(--desktop-inset))}
+.desktop .focus-mode .reader-search{top:calc(62px + var(--desktop-inset))}
+.desktop .skip-link:focus{top:calc(12px + var(--desktop-inset))}
+
+.startup-screen{position:fixed;inset:0;z-index:140;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:25px;background:var(--bg);color:var(--ink)}
+.startup-mark{display:flex;align-items:center;gap:14px;font:54px/1 var(--title);letter-spacing:-.04em}
+.startup-mark>svg{width:34px;height:34px;color:var(--olive);stroke-width:1.3}
+.startup-line{width:54px;height:2px;border-radius:2px;background:var(--line);overflow:hidden}
+.startup-line>span{display:block;height:100%;width:22px;background:var(--olive);border-radius:2px}
+@media(prefers-reduced-motion:no-preference){.startup-mark{animation:startup-mark 240ms ease-out both}.startup-line>span{animation:startup-line 850ms ease-in-out infinite}@keyframes startup-mark{from{opacity:0;transform:translateY(4px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes startup-line{from{transform:translateX(-24px)}to{transform:translateX(56px)}}}
+@media(prefers-reduced-motion:reduce){.startup-line>span{width:100%}}

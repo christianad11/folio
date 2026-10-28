@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f8f7f4">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; frame-src 'none'; base-uri 'none'">
   <meta name="description" content="A little space to read. A quiet PDF library with shelves, saved passages, and nothing in the way.">
   <title>Folio</title>
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
@@ -11,6 +12,7 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
+  <div id="startup-screen" class="startup-screen" role="status" aria-label="Opening Folio"><div class="startup-mark"><svg aria-hidden="true"><use href="#i-book"/></svg><span>folio<span class="brand-dot">.</span></span></div><div class="startup-line" aria-hidden="true"><span></span></div></div>
   <a class="skip-link" href="#main">Skip to content</a>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5.5C9.5 3.8 6.7 3.5 3 4.5v15c3.7-1 6.5-.7 9 1 2.5-1.7 5.3-2 9-1v-15c-3.7-1-6.5-.7-9 1Z"/><path d="M12 5.5v15"/></symbol>
@@ -53,7 +55,7 @@
     <div class="library-content">
       <header class="library-topbar"><button id="mobile-menu" class="icon-button mobile-only" aria-label="Toggle library navigation" aria-expanded="false"><svg><use href="#i-menu"/></svg></button></header>
       <main id="main" class="library-main" tabindex="-1">
-        <div class="library-heading"><div><h1 id="library-title">Your library</h1></div><div class="add-actions"><button id="add-pdfs" class="primary-button"><svg><use href="#i-plus"/></svg>Add PDFs</button><button id="add-options-toggle" class="primary-button split-button" aria-label="More ways to add PDFs" aria-expanded="false"><svg><use href="#i-down"/></svg></button><div id="add-menu" class="floating-menu" hidden><button id="link-file"><svg><use href="#i-link"/></svg>Link a local PDF<small>Keep the original file on your computer</small></button></div></div></div>
+        <div class="library-heading"><div><h1 id="library-title">Your library</h1></div><div class="add-actions"><button id="add-pdfs" class="primary-button"><svg><use href="#i-plus"/></svg>Add PDFs</button><button id="add-options-toggle" class="primary-button split-button" aria-label="More ways to add PDFs" aria-expanded="false"><svg><use href="#i-down"/></svg></button><div id="add-menu" class="floating-menu" hidden><button id="link-file"><svg><use href="#i-link"/></svg>Link a local PDF<small>Keep the original file on your computer</small></button><button id="backup-library"><svg><use href="#i-download"/></svg>Back up library</button></div></div></div>
         <div id="reading-spot" class="reading-spot" hidden></div>
         <div class="library-tools"><div class="book-count" id="book-count">1 book</div><div class="library-tool-right"><label class="search-field"><svg><use href="#i-search"/></svg><span class="sr-only">Find a book</span><input id="book-search" type="search" placeholder="Find a book" autocomplete="off"></label><label class="sort-field"><span class="sr-only">Sort books</span><select id="book-sort"><option value="recent">Recently opened</option><option value="title">Title, A–Z</option><option value="progress">Reading progress</option></select><svg><use href="#i-down"/></svg></label></div></div>
         <div id="books-grid" class="books-grid"></div>
