@@ -381,7 +381,7 @@ function setCurrentPage(number,{persist=true}={}) {
 
 function persistReadingPosition() {
   clearTimeout(positionTimer);
-  if (!state.book || !state.pdf || !pageSlots.length) return;
+  if (state.view!=='reader' || !state.book || !state.pdf || !pageSlots.length) return;
   const visible=currentScrollAnchor();
   if(visible){state.page=visible.page;state.book.progress=state.book.status==='finished'?100:Math.round(state.page/state.pdf.numPages*100);updateReaderControls();}
   const main=$('reader-main'),slot=pageSlots[state.page-1];
